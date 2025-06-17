@@ -66,6 +66,18 @@ LOG = logging.getLogger(__name__)
     is_flag=True,
     default=False,
 )
+@click.option(
+    "--disable-live-migration",
+    help="Disable live migration during maintenance",
+    is_flag=True,
+    default=False,
+)
+@click.option(
+    "--disable-cold-migration",
+    help="Disable cold migration during maintenance",
+    is_flag=True,
+    default=False,
+)
 @click_option_show_hints
 @pass_method_obj
 def enable(
@@ -76,6 +88,8 @@ def enable(
     dry_run,
     enable_ceph_crush_rebalancing,
     stop_osds,
+    disable_live_migration,
+    disable_cold_migration,
     show_hints: bool = False,
 ) -> None:
     """Enable maintenance mode for node."""
@@ -131,7 +145,12 @@ def enable(
     generate_operation_plan: list[BaseStep] = []
     if "compute" in node_status:
         generate_operation_plan.append(
-            CreateWatcherHostMaintenanceAuditStep(deployment=deployment, node=node)
+            CreateWatcherHostMaintenanceAuditStep(
+                deployment=deployment,
+                node=node,
+                disable_live_migration=disable_live_migration,
+                disable_cold_migration=disable_cold_migration
+            )
         )
     if "storage" in node_status:
         generate_operation_plan.append(
