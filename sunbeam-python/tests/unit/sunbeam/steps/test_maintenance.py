@@ -161,7 +161,11 @@ class TestCreateWatcherHostMaintenanceAuditStep:
         mock_watcher_helper.create_audit.assert_called_once_with(
             client=mock_watcher_client,
             template=mock_watcher_helper.get_enable_maintenance_audit_template.return_value,
-            parameters={"maintenance_node": "fake-node"},
+            parameters={
+                "maintenance_node": "fake-node",
+                "disable_live_migration": False,
+                "disable_cold_migration": False,
+            },
         )
 
 
