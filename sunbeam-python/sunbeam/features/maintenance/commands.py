@@ -593,7 +593,7 @@ class DisableMaintenance(MaintenanceCommand):
 )
 @click_option_show_hints
 @pass_method_obj
-def enable(
+def enable(  # noqa: C901
     cls,
     deployment: Deployment,
     node,
