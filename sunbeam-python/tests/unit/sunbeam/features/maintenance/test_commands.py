@@ -5,91 +5,80 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from sunbeam.features.maintenance.commands import enable
+from sunbeam.features.maintenance.commands import EnableMaintenance
 
 
-@pytest.fixture
-def base_mocks():
-    """Common mocks for the `enable` commands."""
-    with (
-        patch("sunbeam.features.maintenance.commands.JujuHelper") as mock_juju_helper,
-        patch(
-            "sunbeam.features.maintenance.commands.get_cluster_status"
-        ) as mock_get_cluster_status,
-        patch(
-            "sunbeam.features.maintenance.commands.run_preflight_checks"
-        ) as mock_run_preflight_checks,
-        patch(
-            "sunbeam.features.maintenance.commands.OperationViewer"
-        ) as mock_operation_viewer,
-        patch("sunbeam.features.maintenance.commands.run_plan") as mock_run_plan,
-        patch(
-            "sunbeam.features.maintenance.commands.CreateWatcherHostMaintenanceAuditStep"
-        ) as mock_create_watcher_step,
-    ):
-        # Setup default mock behavior
-        mock_get_cluster_status.return_value = {"test-node": "compute"}
-        mock_run_preflight_checks.return_value = []
-        mock_create_watcher_step.__name__ = "CreateWatcherHostMaintenanceAuditStep"
+class TestEnableMaintenance:
+    """Test cases for the EnableMaintenance class."""
 
-        mock_result = Mock()
-        mock_result.message = {"actions": []}
-        mock_run_plan.return_value = {
-            "CreateWatcherHostMaintenanceAuditStep": mock_result
-        }
+    @pytest.fixture
+    def mock_deployment(self):
+        """Mock deployment object."""
+        deployment = Mock()
+        deployment.openstack_machines_model = "test-model"
+        deployment.get_client.return_value = Mock()
+        deployment.juju_controller = "test-controller"
+        return deployment
 
-        yield {
-            "mock_juju_helper": mock_juju_helper,
-            "mock_get_cluster_status": mock_get_cluster_status,
-            "mock_run_preflight_checks": mock_run_preflight_checks,
-            "mock_operation_viewer": mock_operation_viewer,
-            "mock_run_plan": mock_run_plan,
-            "mock_create_watcher_step": mock_create_watcher_step,
-        }
-
-
-class TestDisableMigrationCommand:
-    """Test cases for the `disable_migration` option in maintenance command CLI."""
-
-    def _call_enable_function(self, disable_migration):
-        """Helper method to call enable function with given disable_migration param."""
-        original_func = enable.callback
-        mock_self = Mock()
-        mock_deployment = Mock()
-
-        with patch("click.get_current_context"):
-            original_func(
-                mock_self,
-                deployment=mock_deployment,
-                node="test-node",
-                force=True,
-                dry_run=True,
-                enable_ceph_crush_rebalancing=False,
-                stop_osds=False,
-                disable_migration=disable_migration,
-                show_hints=False,
-            )
+    @pytest.fixture
+    def cluster_status(self):
+        """Mock cluster status."""
+        return {"test-node": "compute"}
 
     @pytest.mark.parametrize(
-        "disable_migration,expected_live,expected_cold",
+        "disable_live_migration,disable_cold_migration",
         [
-            (None, False, False),  # None case
-            ("both", True, True),  # "both" case
-            ("live", True, False),  # "live" case
-            ("cold", False, True),  # "cold" case
+            (False, False),  # Default case
+            (True, True),  # Both disabled
+            (True, False),  # Only live disabled
+            (False, True),  # Only cold disabled
         ],
     )
-    def test_disable_migration_parameters(
-        self, base_mocks, disable_migration, expected_live, expected_cold
+    def test_dry_run_creates_watcher_step_with_correct_migration_params(
+        self,
+        mock_deployment,
+        cluster_status,
+        disable_live_migration,
+        disable_cold_migration,
     ):
-        """Test disable-migration parameter mapping for all cases."""
-        mock_create_watcher_step = base_mocks["mock_create_watcher_step"]
+        """Test dry_run creates CreateWatcherHostMaintenanceAuditStep correctly."""
+        with (
+            patch(
+                "sunbeam.features.maintenance.commands.CreateWatcherHostMaintenanceAuditStep"
+            ) as mock_create_watcher_step,
+            patch("sunbeam.features.maintenance.commands.run_plan") as mock_run_plan,
+            patch("sunbeam.features.maintenance.commands.JujuHelper"),
+            patch("sunbeam.features.maintenance.commands.OperationViewer"),
+        ):
+            # Set up mock class name for get_step_message
+            mock_create_watcher_step.__name__ = "CreateWatcherHostMaintenanceAuditStep"
 
-        with patch("sunbeam.features.maintenance.commands.EnableMaintenance") as mock_enable_maintenance:
-            self._call_enable_function(disable_migration)
+            # Mock run_plan return value
+            mock_result = Mock()
+            mock_result.message = {"actions": []}
+            mock_run_plan.return_value = {
+                "CreateWatcherHostMaintenanceAuditStep": mock_result
+            }
 
-            # Check EnableMaintenance was created with correct migration parameters
-            mock_enable_maintenance.assert_called_once()
-            _, kwargs = mock_enable_maintenance.call_args
-            assert kwargs["disable_live_migration"] == expected_live
-            assert kwargs["disable_cold_migration"] == expected_cold
+            # Create EnableMaintenance instance
+            enable_maintenance = EnableMaintenance(
+                node="test-node",
+                deployment=mock_deployment,
+                cluster_status=cluster_status,
+                disable_live_migration=disable_live_migration,
+                disable_cold_migration=disable_cold_migration,
+            )
+
+            # Mock console for dry_run
+            mock_console = Mock()
+
+            # Call dry_run
+            enable_maintenance.dry_run(mock_console, show_hints=False)
+
+            # Verify CreateWatcherHostMaintenanceAuditStep called with correct params
+            mock_create_watcher_step.assert_called_once_with(
+                deployment=mock_deployment,
+                node="test-node",
+                disable_live_migration=disable_live_migration,
+                disable_cold_migration=disable_cold_migration,
+            )
