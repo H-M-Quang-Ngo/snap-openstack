@@ -332,7 +332,7 @@ def first_connected_server(servers: list) -> str | None:
     return None
 
 
-def click_option_show_hints(func: click.decorators.FC) -> click.decorators.FC:
+def click_option_show_hints(func: typing.Callable) -> typing.Callable:
     """Common decorator to show hints for questions."""
     return click.option(
         "--hints/--no-hints",

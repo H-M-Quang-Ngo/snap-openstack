@@ -9,11 +9,10 @@ import os
 import queue
 import threading
 from pathlib import Path
-from typing import Any, Sequence, Type, TypeVar
+from typing import Any, Callable, Sequence, Type, TypeVar
 
 import click
 import yaml
-from click import decorators
 from rich.console import Console
 from rich.status import Status
 from snaphelpers import Snap, UnknownConfigKey
@@ -319,7 +318,7 @@ def get_host_total_cores() -> int:
     return os.cpu_count() or 1
 
 
-def click_option_topology(func: decorators.FC) -> decorators.FC:
+def click_option_topology(func: Callable) -> Callable:
     return click.option(
         "--topology",
         default="auto",
@@ -342,7 +341,7 @@ def click_option_topology(func: decorators.FC) -> decorators.FC:
     )(func)
 
 
-def click_option_database(func: click.decorators.FC) -> click.decorators.FC:
+def click_option_database(func: Callable) -> Callable:
     return click.option(
         "--database",
         default="auto",
